@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lorcam-green: #4A5D23;
+  --color-lorcam-leaf: #6B8E23;
+  --color-lorcam-beige: #F5F5DC;
+  --color-lorcam-earth: #8B5A2B;
+  --color-lorcam-charcoal: #333333;
+  --color-lorcam-soft: #1A1A1A;
+}
