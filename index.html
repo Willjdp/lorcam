@@ -1,10 +1,58 @@
 <!doctype html>
-<html lang="en">
+<html lang="es-MX">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>lorcam</title>
+    <meta name="robots" content="index, follow" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/jpeg" href="/Logo.jpeg" />
+    <link rel="apple-touch-icon" href="/Logo.jpeg" />
+
+    <!-- Título y descripción base (React 19 los sobreescribe dinámicamente) -->
+    <title>LORCAM - Lombriz Roja Californiana · Monterrey, NL</title>
+    <meta name="description" content="Lombriz roja californiana, humus y lixiviado orgánico de alta calidad. Productores en Monterrey, NL. Envíos a todo México con asesoría gratuita incluida." />
+
+    <!-- Open Graph base -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_MX" />
+    <meta property="og:site_name" content="LORCAM" />
+    <meta property="og:title" content="LORCAM - Lombriz Roja Californiana · Monterrey, NL" />
+    <meta property="og:description" content="Lombriz roja californiana, humus y lixiviado orgánico de alta calidad. Productores en Monterrey, NL. Envíos a todo México." />
+    <meta property="og:image" content="/Logo.jpeg" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LORCAM - Lombriz Roja Californiana · Monterrey, NL" />
+    <meta name="twitter:description" content="Lombriz roja californiana, humus y lixiviado orgánico. Productores en Monterrey, NL." />
+    <meta name="twitter:image" content="/Logo.jpeg" />
+
+    <!-- Datos estructurados: Organización -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "LORCAM",
+      "alternateName": "Lombriz Roja Californiana Monterrey",
+      "description": "Productores de lombriz roja californiana (Eisenia foetida), humus de lombriz y lixiviado orgánico en Monterrey, Nuevo León.",
+      "url": "https://lorcam.com",
+      "telephone": "+5218120278645",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Monterrey",
+        "addressRegion": "Nuevo León",
+        "addressCountry": "MX"
+      },
+      "areaServed": "MX",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "telephone": "+5218120278645",
+        "contactOption": "TollFree",
+        "availableLanguage": "Spanish"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,5 +1,55 @@
 @import "tailwindcss";
 
+/* ── Accesibilidad: foco visible global ───────────────────────────────────── */
+
+/*
+ * Restaura el outline para navegación por teclado en todos los elementos.
+ * Los estilos de foco se muestran SOLO cuando se usa teclado (:focus-visible),
+ * no cuando se hace clic con el ratón.
+ */
+*:focus-visible {
+  outline: 2px solid #4A5D23;
+  outline-offset: 3px;
+}
+
+/* Botones y links con fondo oscuro necesitan outline claro */
+.focus-ring-white:focus-visible {
+  outline-color: #ffffff;
+}
+
+/* Skip-to-content: invisible hasta recibir foco por teclado */
+.skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+.skip-link:focus-visible {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 9999;
+  width: auto;
+  height: auto;
+  padding: 0.5rem 1.25rem;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background-color: #4A5D23;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
 @theme {
   --color-lorcam-green: #4A5D23;
   --color-lorcam-leaf: #6B8E23;
@@ -7,4 +57,23 @@
   --color-lorcam-earth: #8B5A2B;
   --color-lorcam-charcoal: #333333;
   --color-lorcam-soft: #1A1A1A;
+
+  --animate-fade-in: fade-in 0.35s ease-out both;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out both;
+  --animate-slide-in-up: slide-in-up 0.3s ease-out both;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(100%); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slide-in-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }
