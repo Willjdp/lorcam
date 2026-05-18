@@ -9,9 +9,10 @@ interface Props {
   onAdd: (product: Product) => void
   onUpdateQuantity: (id: number, delta: number) => void
   onRemove: (id: number) => void
+  onOpenDetail: (product: Product) => void
 }
 
-const ProductCard = memo(function ProductCard({ product, cartItem, onAdd, onUpdateQuantity, onRemove }: Props) {
+const ProductCard = memo(function ProductCard({ product, cartItem, onAdd, onUpdateQuantity, onRemove, onOpenDetail }: Props) {
   const imgSrc = toWebP(product.image_url, 400)
   const altText = product.description
     ? `${product.name} (${product.unit}) — ${product.description.slice(0, 80)}`
@@ -23,20 +24,29 @@ const ProductCard = memo(function ProductCard({ product, cartItem, onAdd, onUpda
       itemScope
       itemType="https://schema.org/Product"
     >
-      <div className="relative overflow-hidden aspect-square bg-gray-50">
+      <button
+        onClick={() => onOpenDetail(product)}
+        aria-label={`Ver detalle de ${product.name}`}
+        className="relative overflow-hidden aspect-square bg-gray-50 w-full group block"
+      >
         <img
           src={imgSrc}
           alt={altText}
           loading="lazy"
           decoding="async"
           itemProp="image"
-          className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={e => {
             const img = e.target as HTMLImageElement
             if (img.src !== product.image_url) img.src = product.image_url
           }}
         />
-      </div>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors duration-300" aria-hidden="true">
+          <span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-800 text-xs font-semibold px-3 py-1 rounded-full transition-opacity duration-300">
+            Ver detalle
+          </span>
+        </div>
+      </button>
       <div className="p-3">
         <h3 className="font-bold text-sm text-gray-800 leading-snug mb-1" itemProp="name">{product.name}</h3>
         <p className="text-gray-500 text-xs mb-2" itemProp="description">{product.unit}</p>

@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { validateProduct, validateCategory, validateCart, MAX_QUANTITY } from './lib/validation'
 import type { Category, Product, CartItem } from './types'
-import { ShoppingCart, X, Plus, Minus, MessageCircle, Menu, Leaf, Truck, Users, Star, ChevronRight, ChevronUp, ChevronLeft } from 'lucide-react'
+import { ShoppingCart, X, Plus, Minus, MessageCircle, Menu, Leaf, Truck, Users, Star, ChevronRight, ChevronUp, ChevronLeft, Search } from 'lucide-react'
 import ProductCard from './components/ProductCard'
+import ProductModal from './components/ProductModal'
 import { useFocusTrap } from './hooks/useFocusTrap'
 
 interface Toast {
@@ -18,7 +19,14 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [activeCategory, setActiveCategory] = useState<number | null>(null)
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('lorcam_cart')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
   const [cartOpen, setCartOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -26,6 +34,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   // Focus trap para el drawer del carrito
   const cartTrapRef = useFocusTrap(cartOpen)
@@ -40,6 +50,11 @@ export default function App() {
   }, [])
 
   useEffect(() => { setPage(1) }, [activeCategory])
+  useEffect(() => { setPage(1) }, [searchQuery])
+
+  useEffect(() => {
+    localStorage.setItem('lorcam_cart', JSON.stringify(cart))
+  }, [cart])
 
   // Cerrar modales con Escape
   useEffect(() => {
@@ -135,6 +150,9 @@ export default function App() {
     addToast(`${product.name} agregado al carrito`)
   }, [addToast])
 
+  const handleOpenDetail = useCallback((product: Product) => setSelectedProduct(product), [])
+  const handleCloseDetail = useCallback(() => setSelectedProduct(null), [])
+
   const removeFromCart = useCallback((productId: number) => {
     setCart(prev => prev.filter(i => i.product.id !== productId))
   }, [])
@@ -151,10 +169,12 @@ export default function App() {
   const total = useMemo(() => cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0), [cart])
   const cartCount = useMemo(() => cart.reduce((sum, i) => sum + i.quantity, 0), [cart])
 
-  const filteredProducts = useMemo(
-    () => activeCategory ? products.filter(p => p.category_id === activeCategory) : products,
-    [products, activeCategory]
-  )
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return products
+      .filter(p => !activeCategory || p.category_id === activeCategory)
+      .filter(p => !q || p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
+  }, [products, activeCategory, searchQuery])
 
   const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE)
 
@@ -366,6 +386,28 @@ export default function App() {
                 )}
               </nav>
 
+              {/* Buscador */}
+              <div className="relative mb-6 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Buscar productos..."
+                  aria-label="Buscar productos"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-full border border-gray-200 text-sm bg-white focus:outline-none focus:border-[#4A5D23] focus:ring-2 focus:ring-[#4A5D23]/20 transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+
               {/* Filtros de categoría */}
               <div role="group" aria-label="Filtrar por categoría" className="flex gap-2 flex-wrap mb-8">
                 <button
@@ -422,11 +464,17 @@ export default function App() {
               {/* Estado vacío */}
               {!loading && !fetchError && filteredProducts.length === 0 && (
                 <div className="text-center py-20 animate-fade-in">
-                  <p className="text-5xl mb-4" aria-hidden="true">🌱</p>
-                  <p className="text-gray-800 font-semibold text-lg mb-2">Sin productos aquí</p>
-                  <p className="text-gray-600 text-sm mb-6">No encontramos productos en esta categoría.</p>
+                  <p className="text-5xl mb-4" aria-hidden="true">{searchQuery ? '🔍' : '🌱'}</p>
+                  <p className="text-gray-800 font-semibold text-lg mb-2">
+                    {searchQuery ? 'Sin resultados' : 'Sin productos aquí'}
+                  </p>
+                  <p className="text-gray-600 text-sm mb-6">
+                    {searchQuery
+                      ? `No encontramos productos para "${searchQuery}".`
+                      : 'No encontramos productos en esta categoría.'}
+                  </p>
                   <button
-                    onClick={() => handleCategoryChange(null)}
+                    onClick={() => { setSearchQuery(''); handleCategoryChange(null) }}
                     className="px-6 py-2.5 bg-[#4A5D23] text-white rounded-full text-sm font-semibold hover:bg-[#6B8E23] transition-colors"
                   >
                     Ver todos los productos
@@ -450,6 +498,7 @@ export default function App() {
                         onAdd={addToCart}
                         onUpdateQuantity={updateQuantity}
                         onRemove={removeFromCart}
+                        onOpenDetail={handleOpenDetail}
                       />
                     ))}
                   </div>
@@ -693,6 +742,18 @@ export default function App() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Modal de detalle de producto */}
+        {selectedProduct && (
+          <ProductModal
+            product={selectedProduct}
+            cartItem={cart.find(i => i.product.id === selectedProduct.id)}
+            onClose={handleCloseDetail}
+            onAdd={addToCart}
+            onUpdateQuantity={updateQuantity}
+            onRemove={removeFromCart}
+          />
         )}
 
         {/* Toasts — aria-live anuncia cambios a lectores de pantalla */}
