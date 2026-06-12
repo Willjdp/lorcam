@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { X, Upload } from 'lucide-react'
 import type { Product, Category } from '../../types'
+import { supabase } from '../../lib/supabase'
 
 interface FormData {
   name: string
@@ -28,21 +29,16 @@ function validate(data: FormData): FormErrors {
   if (!data.price.trim()) errors.price = 'El precio es obligatorio'
   else if (isNaN(price) || price <= 0) errors.price = 'Ingresa un precio mayor a $0'
   else if (price > 999_999) errors.price = 'El precio no puede superar $999,999'
-  if (!data.image_url.trim()) {
-    errors.image_url = 'La URL de imagen es obligatoria'
-  } else {
-    try {
-      const { protocol } = new URL(data.image_url)
-      if (protocol !== 'http:' && protocol !== 'https:') errors.image_url = 'Debe ser una URL http o https'
-    } catch {
-      errors.image_url = 'Ingresa una URL válida'
-    }
-  }
+  if (!data.image_url.trim()) errors.image_url = 'Al menos una imagen es obligatoria'
   if (!data.category_id) errors.category_id = 'Selecciona una categoría'
   if (!data.unit.trim()) errors.unit = 'La unidad es obligatoria'
   else if (data.unit.trim().length > 50) errors.unit = 'Máximo 50 caracteres'
   return errors
 }
+
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const MAX_SIZE_MB = 5
+const MAX_IMAGES = 8
 
 interface Props {
   product?: Product
@@ -54,11 +50,17 @@ interface Props {
 export default function ProductForm({ product, categories, onSave, onCancel }: Props) {
   const isEditing = !!product
 
+  const initialImages = product?.image_urls?.length
+    ? product.image_urls
+    : product?.image_url
+    ? [product.image_url]
+    : []
+
   const [form, setForm] = useState<FormData>({
     name: product?.name ?? '',
     description: product?.description ?? '',
     price: product?.price.toString() ?? '',
-    image_url: product?.image_url ?? '',
+    image_url: initialImages[0] ?? '',
     category_id: product?.category_id.toString() ?? '',
     unit: product?.unit ?? '',
     active: product?.active ?? true,
@@ -68,7 +70,26 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
   const [serverError, setServerError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // — Multi-image state
+  const [imageUrls, setImageUrls] = useState<string[]>(initialImages)
+  const [blobUrls, setBlobUrls] = useState<Record<number, string>>({})
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadTargetIdx = useRef<number>(0)
+  const blobUrlsRef = useRef<Record<number, string>>({})
+
+  // Keep ref in sync for unmount cleanup
+  useEffect(() => { blobUrlsRef.current = blobUrls }, [blobUrls])
+  useEffect(() => () => { Object.values(blobUrlsRef.current).forEach(u => URL.revokeObjectURL(u)) }, [])
+
+  // Sync form.image_url with first image for validation
+  useEffect(() => {
+    setForm(prev => ({ ...prev, image_url: imageUrls[0] ?? '' }))
+  }, [imageUrls])
+
   const errors = validate(form)
+  const isBusy = saving || uploadingIdx !== null
 
   function set(field: keyof FormData, value: string | boolean) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -86,6 +107,87 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
     }`
   }
 
+  function openFilePicker(idx: number) {
+    uploadTargetIdx.current = idx
+    fileInputRef.current?.click()
+  }
+
+  function removeImage(idx: number) {
+    setImageUrls(prev => prev.filter((_, i) => i !== idx))
+    setBlobUrls(prev => {
+      const next: Record<number, string> = {}
+      Object.entries(prev).forEach(([k, v]) => {
+        const ki = parseInt(k)
+        if (ki === idx) URL.revokeObjectURL(v)
+        else if (ki > idx) next[ki - 1] = v
+        else next[ki] = v
+      })
+      return next
+    })
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      setUploadError('Formato no válido. Usa JPG, PNG, WEBP o GIF.')
+      return
+    }
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setUploadError(`La imagen no puede superar ${MAX_SIZE_MB} MB.`)
+      return
+    }
+
+    const idx = uploadTargetIdx.current
+    const blob = URL.createObjectURL(file)
+
+    setBlobUrls(prev => {
+      if (prev[idx]) URL.revokeObjectURL(prev[idx])
+      return { ...prev, [idx]: blob }
+    })
+    setUploadError(null)
+    setUploadingIdx(idx)
+
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
+
+    const { error } = await supabase.storage
+      .from('products')
+      .upload(fileName, file, { contentType: file.type, upsert: false })
+
+    if (error) {
+      console.error('Supabase upload error:', error)
+      setUploadingIdx(null)
+      setUploadError('Error al subir la imagen. Intenta de nuevo.')
+      setBlobUrls(prev => {
+        URL.revokeObjectURL(blob)
+        const next = { ...prev }
+        delete next[idx]
+        return next
+      })
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName)
+
+    setImageUrls(prev => {
+      const next = [...prev]
+      if (idx < next.length) next[idx] = publicUrl
+      else next.push(publicUrl)
+      return next
+    })
+
+    setBlobUrls(prev => {
+      URL.revokeObjectURL(blob)
+      const next = { ...prev }
+      delete next[idx]
+      return next
+    })
+    setUploadingIdx(null)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setTouched({ name: true, price: true, image_url: true, category_id: true, unit: true })
@@ -97,7 +199,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
       name: form.name.trim(),
       description: form.description.trim(),
       price: Math.round(parseFloat(form.price) * 100) / 100,
-      image_url: form.image_url.trim(),
+      image_url: imageUrls[0] ?? '',
+      image_urls: imageUrls,
       category_id: parseInt(form.category_id),
       unit: form.unit.trim(),
       active: form.active,
@@ -241,22 +344,91 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
             </span>
           </div>
 
-          {/* URL imagen */}
+          {/* ── Imágenes ──────────────────────────────────────────────────────── */}
           <div className="sm:col-span-2">
-            <label htmlFor="pf-image" className="block text-sm font-semibold text-gray-700 mb-1.5">
-              URL de imagen <span className="text-red-500" aria-hidden="true">*</span>
-            </label>
+            <p className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Imágenes <span className="text-red-500" aria-hidden="true">*</span>
+              <span className="text-gray-400 font-normal ml-1.5">(la primera es la portada)</span>
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              {imageUrls.map((url, i) => (
+                <div
+                  key={i}
+                  className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-gray-200 group"
+                >
+                  <img
+                    src={blobUrls[i] ?? url}
+                    alt={`Foto ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+
+                  {uploadingIdx === i ? (
+                    <div className="absolute inset-0 bg-white/75 flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-[#4A5D23] border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openFilePicker(i)}
+                      disabled={isBusy}
+                      aria-label={`Cambiar foto ${i + 1}`}
+                      className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center"
+                    >
+                      <span className="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-800 text-[11px] font-semibold px-2 py-1 rounded-full transition-opacity flex items-center gap-1">
+                        <Upload className="w-3 h-3" aria-hidden="true" />
+                        Cambiar
+                      </span>
+                    </button>
+                  )}
+
+                  {imageUrls.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      disabled={isBusy}
+                      aria-label={`Eliminar foto ${i + 1}`}
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-30"
+                    >
+                      <X className="w-3 h-3" aria-hidden="true" />
+                    </button>
+                  )}
+
+                  {i === 0 && (
+                    <span className="absolute bottom-1 left-1 bg-[#4A5D23] text-white text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                      Portada
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {imageUrls.length < MAX_IMAGES && (
+                <button
+                  type="button"
+                  onClick={() => openFilePicker(imageUrls.length)}
+                  disabled={isBusy}
+                  aria-label="Agregar foto"
+                  className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-200 hover:border-[#4A5D23]/50 bg-gray-50 flex flex-col items-center justify-center gap-1 transition-colors disabled:opacity-50"
+                >
+                  <Upload className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                  <span className="text-xs text-gray-400">Agregar</span>
+                </button>
+              )}
+            </div>
+
             <input
-              id="pf-image"
-              type="url"
-              value={form.image_url}
-              onChange={e => set('image_url', e.target.value)}
-              onBlur={() => blur('image_url')}
-              aria-invalid={touched.image_url && !!errors.image_url}
-              aria-describedby={touched.image_url && errors.image_url ? 'pf-image-error' : undefined}
-              className={inputClass('image_url')}
-              placeholder="https://..."
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_TYPES.join(',')}
+              onChange={handleFileChange}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
             />
+
+            {uploadError && (
+              <p role="alert" className="text-red-600 text-xs mt-1.5">{uploadError}</p>
+            )}
             {touched.image_url && errors.image_url && (
               <p id="pf-image-error" role="alert" className="text-red-600 text-xs mt-1">{errors.image_url}</p>
             )}
@@ -285,7 +457,7 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
-            disabled={saving}
+            disabled={isBusy}
             className="flex-1 py-2.5 bg-[#4A5D23] text-white rounded-full font-bold text-sm hover:bg-[#6B8E23] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Crear producto'}
@@ -293,7 +465,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
           <button
             type="button"
             onClick={onCancel}
-            className="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-full font-semibold text-sm hover:border-gray-300 transition-colors"
+            disabled={isBusy}
+            className="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-full font-semibold text-sm hover:border-gray-300 disabled:opacity-50 transition-colors"
           >
             Cancelar
           </button>

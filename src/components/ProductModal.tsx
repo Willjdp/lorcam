@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { X, Plus, Minus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { X, Plus, Minus, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Product, CartItem } from '../types'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { toWebP } from '../lib/image'
@@ -15,14 +15,23 @@ interface Props {
 
 export default function ProductModal({ product, cartItem, onClose, onAdd, onUpdateQuantity, onRemove }: Props) {
   const trapRef = useFocusTrap(true)
+  const images = product.image_urls?.length ? product.image_urls : [product.image_url]
+  console.log('DEBUG images:', product.image_urls, images)
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  useEffect(() => { setActiveIdx(0) }, [product.id])
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') setActiveIdx(i => Math.max(0, i - 1))
+      if (e.key === 'ArrowRight') setActiveIdx(i => Math.min(images.length - 1, i + 1))
+    }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  }, [onClose, images.length])
 
-  const imgSrc = toWebP(product.image_url, 600)
+  const imgSrc = toWebP(images[activeIdx], 600)
 
   return (
     <div
@@ -51,16 +60,56 @@ export default function ProductModal({ product, cartItem, onClose, onAdd, onUpda
         </button>
 
         {/* Imagen */}
-        <div className="w-full md:w-1/2 shrink-0 bg-gray-50 h-56 sm:h-64 md:h-auto">
-          <img
-            src={imgSrc}
-            alt={product.name}
-            className="w-full h-full object-cover"
-            onError={e => {
-              const img = e.target as HTMLImageElement
-              if (img.src !== product.image_url) img.src = product.image_url
-            }}
-          />
+        <div className="w-full md:w-1/2 shrink-0 bg-gray-50 h-56 sm:h-64 md:h-auto flex flex-col">
+          <div className="relative flex-1 overflow-hidden">
+            <img
+              src={imgSrc}
+              alt={`${product.name} — foto ${activeIdx + 1} de ${images.length}`}
+              className="w-full h-full object-cover"
+              onError={e => {
+                const img = e.target as HTMLImageElement
+                if (img.src !== images[activeIdx]) img.src = images[activeIdx]
+              }}
+            />
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={() => setActiveIdx(i => Math.max(0, i - 1))}
+                  disabled={activeIdx === 0}
+                  aria-label="Foto anterior"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 shadow flex items-center justify-center hover:bg-white disabled:opacity-30 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-700" aria-hidden="true" />
+                </button>
+                <button
+                  onClick={() => setActiveIdx(i => Math.min(images.length - 1, i + 1))}
+                  disabled={activeIdx === images.length - 1}
+                  aria-label="Foto siguiente"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 shadow flex items-center justify-center hover:bg-white disabled:opacity-30 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-700" aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {images.length > 1 && (
+            <div className="flex gap-1.5 p-2 bg-gray-50 overflow-x-auto">
+              {images.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveIdx(i)}
+                  aria-label={`Ver foto ${i + 1}`}
+                  aria-pressed={i === activeIdx}
+                  className={`shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-colors ${
+                    i === activeIdx ? 'border-[#4A5D23]' : 'border-transparent hover:border-gray-300'
+                  }`}
+                >
+                  <img src={toWebP(url, 96)} alt="" className="w-full h-full object-cover" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Contenido */}

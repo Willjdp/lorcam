@@ -11,6 +11,7 @@ export interface Product {
   description: string
   price: number
   image_url: string
+  image_urls: string[]
   category_id: number
   unit: string
   active: boolean

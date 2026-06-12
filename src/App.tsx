@@ -5,6 +5,8 @@ import type { Category, Product, CartItem } from './types'
 import { ShoppingCart, X, Plus, Minus, MessageCircle, Menu, Leaf, Truck, Users, Star, ChevronRight, ChevronUp, ChevronLeft, Search } from 'lucide-react'
 import ProductCard from './components/ProductCard'
 import ProductModal from './components/ProductModal'
+import CheckoutModal from './components/CheckoutModal'
+import PaymentSuccessModal from './components/PaymentSuccessModal'
 import { useFocusTrap } from './hooks/useFocusTrap'
 
 interface Toast {
@@ -29,6 +31,10 @@ export default function App() {
   })
   const [cartOpen, setCartOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [successOpen, setSuccessOpen] = useState(false)
+  const [paidCart, setPaidCart] = useState<CartItem[]>([])
+  const [paidTotal, setPaidTotal] = useState(0)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -110,7 +116,8 @@ export default function App() {
 
   async function fetchProducts() {
     try {
-      const { data, error } = await supabase.from('products').select('*').eq('active', true)
+      const { data, error } = await supabase.from('products').select('id, name, description, price, image_url, image_urls, category_id, unit, active').eq('active', true)
+      console.log('productos raw:', data)
       if (error) throw error
       if (data) setProducts(data.map(validateProduct).filter((p): p is Product => p !== null))
     } catch {
@@ -732,8 +739,14 @@ export default function App() {
                     <span className="font-black text-[#4A5D23] text-lg">${total.toFixed(2)}</span>
                   </div>
                   <button
+                    onClick={() => { setCartOpen(false); setCheckoutOpen(true) }}
+                    className="w-full bg-[#4A5D23] text-white py-3 rounded-full font-bold flex items-center justify-center gap-2 hover:bg-[#6B8E23] transition-colors mb-3"
+                  >
+                    Pagar con tarjeta
+                  </button>
+                  <button
                     onClick={sendWhatsApp}
-                    className="w-full bg-[#4A5D23] text-white py-3 rounded-full font-bold flex items-center justify-center gap-2 hover:bg-[#6B8E23] transition-colors"
+                    className="w-full border border-[#4A5D23] text-[#4A5D23] py-3 rounded-full font-bold flex items-center justify-center gap-2 hover:bg-[#4A5D23]/5 transition-colors"
                   >
                     <MessageCircle className="w-5 h-5" aria-hidden="true" />
                     Pedir por WhatsApp
@@ -753,6 +766,31 @@ export default function App() {
             onAdd={addToCart}
             onUpdateQuantity={updateQuantity}
             onRemove={removeFromCart}
+          />
+        )}
+
+        {/* Modal de checkout con Stripe */}
+        {checkoutOpen && (
+          <CheckoutModal
+            cart={cart}
+            total={total}
+            onClose={() => setCheckoutOpen(false)}
+            onSuccess={() => {
+              setCheckoutOpen(false)
+              setPaidCart([...cart])
+              setPaidTotal(total)
+              setCart([])
+              setSuccessOpen(true)
+            }}
+          />
+        )}
+
+        {/* Modal de pago exitoso */}
+        {successOpen && (
+          <PaymentSuccessModal
+            cart={paidCart}
+            total={paidTotal}
+            onClose={() => setSuccessOpen(false)}
           />
         )}
 
