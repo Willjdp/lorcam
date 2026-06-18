@@ -18,6 +18,13 @@ function sanitizeUrl(value: unknown): string {
   }
 }
 
+function sanitizeUrlArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map(v => sanitizeUrl(v))
+    .filter(v => v !== '')
+}
+
 export function validateProduct(raw: unknown): Product | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
@@ -38,6 +45,7 @@ export function validateProduct(raw: unknown): Product | null {
     description: sanitizeString(r.description, 500),
     price: Math.round(r.price * 100) / 100,
     image_url: sanitizeUrl(r.image_url),
+    image_urls: sanitizeUrlArray(r.image_urls),
     category_id: typeof r.category_id === 'number' ? r.category_id : 0,
     unit: sanitizeString(r.unit, 50),
     active: r.active,
