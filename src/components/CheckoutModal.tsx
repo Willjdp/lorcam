@@ -31,7 +31,7 @@ interface Props {
   cart: CartItem[]
   total: number
   onClose: () => void
-  onSuccess: (buyer: BuyerData) => void
+  onSuccess: (buyer: BuyerData, orderId: number | null) => void
 }
 
 function validateBuyer(data: BuyerData): BuyerErrors {
@@ -306,7 +306,7 @@ export default function CheckoutModal({ cart, total, onClose, onSuccess }: Props
                     buyer={buyer}
                     cart={cart}
                     total={total}
-                    onSuccess={() => onSuccess(buyer)}
+                    onSuccess={(orderId) => onSuccess(buyer, orderId)}
                     onCancel={onClose}
                   />
                 </Elements>

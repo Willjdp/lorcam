@@ -17,7 +17,7 @@ interface Props {
   buyer: BuyerData
   cart: CartItem[]
   total: number
-  onSuccess: () => void
+  onSuccess: (orderId: number | null) => void
   onCancel: () => void
 }
 
@@ -27,7 +27,7 @@ export default function CheckoutForm({ buyer, cart, total, onSuccess, onCancel }
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function saveOrder(stripePaymentId: string) {
+  async function saveOrder(stripePaymentId: string): Promise<number | null> {
     const items = cart.map(i => ({
       product_id: i.product.id,
       product_name: i.product.name,
@@ -49,8 +49,6 @@ export default function CheckoutForm({ buyer, cart, total, onSuccess, onCancel }
     }).select().single()
 
     // Enviar emails de confirmación
-    console.log('SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL)
-    console.log('ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY?.slice(0, 20))
     await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-order-emails`, {
       method: 'POST',
       headers: {
@@ -59,6 +57,8 @@ export default function CheckoutForm({ buyer, cart, total, onSuccess, onCancel }
       },
       body: JSON.stringify({ order, buyer, cart, total }),
     })
+
+    return order?.id ?? null
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -87,8 +87,8 @@ export default function CheckoutForm({ buyer, cart, total, onSuccess, onCancel }
       setError(confirmError.message ?? 'Error al confirmar el pago')
       setLoading(false)
     } else {
-      await saveOrder(paymentIntent?.id ?? '')
-      onSuccess()
+      const orderId = await saveOrder(paymentIntent?.id ?? '')
+      onSuccess(orderId)
     }
   }
 

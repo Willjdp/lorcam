@@ -35,6 +35,8 @@ export default function App() {
   const [successOpen, setSuccessOpen] = useState(false)
   const [paidCart, setPaidCart] = useState<CartItem[]>([])
   const [paidTotal, setPaidTotal] = useState(0)
+  const [paidOrderId, setPaidOrderId] = useState<number | null>(null)
+  const [paidBuyerEmail, setPaidBuyerEmail] = useState<string>('')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -775,10 +777,12 @@ export default function App() {
             cart={cart}
             total={total}
             onClose={() => setCheckoutOpen(false)}
-            onSuccess={() => {
+            onSuccess={(buyer, orderId) => {
               setCheckoutOpen(false)
               setPaidCart([...cart])
               setPaidTotal(total)
+              setPaidOrderId(orderId)
+              setPaidBuyerEmail(buyer.email)
               setCart([])
               setSuccessOpen(true)
             }}
@@ -790,6 +794,8 @@ export default function App() {
           <PaymentSuccessModal
             cart={paidCart}
             total={paidTotal}
+            orderId={paidOrderId}
+            buyerEmail={paidBuyerEmail}
             onClose={() => setSuccessOpen(false)}
           />
         )}
