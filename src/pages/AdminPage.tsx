@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2, LogOut, AlertTriangle, RotateCcw, X, Tag, ShoppingBag, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Pencil, Trash2, LogOut, AlertTriangle, RotateCcw, X, Tag, ShoppingBag, ChevronDown, ChevronUp, FileText, CheckCircle, Clock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import type { Product, Category } from '../types'
@@ -19,6 +19,19 @@ interface Order {
   status: string
   stripe_payment_id: string
   items: { product_name: string; product_price: number; quantity: number }[]
+}
+
+interface Invoice {
+  id: number
+  created_at: string
+  order_id: number
+  rfc: string
+  business_name: string
+  cfdi_use: string
+  payment_method: string
+  fiscal_zip: string
+  fiscal_email: string
+  status: string
 }
 
 // ── Diálogo de confirmación de borrado de producto ────────────────────────────
@@ -223,6 +236,10 @@ export default function AdminPage() {
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null)
 
+  // ── Estado de facturas
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(true)
+
   useEffect(() => { loadData() }, [])
 
   async function loadData() {
@@ -247,6 +264,12 @@ export default function AdminPage() {
     const { data: ords } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
     setOrders((ords ?? []) as Order[])
     setOrdersLoading(false)
+
+    // Cargar facturas
+    setInvoicesLoading(true)
+    const { data: invs } = await supabase.from('invoices').select('*').order('created_at', { ascending: false })
+    setInvoices((invs ?? []) as Invoice[])
+    setInvoicesLoading(false)
   }
 
   function showToast(msg: string) {
@@ -360,6 +383,14 @@ export default function AdminPage() {
     } finally {
       setDeleteCatLoading(false)
     }
+  }
+
+  async function toggleInvoiceStatus(invoice: Invoice) {
+    const newStatus = invoice.status === 'pending' ? 'issued' : 'pending'
+    const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', invoice.id)
+    if (error) { showToast('Error al actualizar el estado'); return }
+    setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, status: newStatus } : i))
+    showToast(newStatus === 'issued' ? 'Factura marcada como emitida' : 'Factura marcada como pendiente')
   }
 
   return (
@@ -621,7 +652,10 @@ export default function AdminPage() {
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <div>
-                        <p className="font-semibold text-gray-900 text-sm">{order.customer_name}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-400">#{order.id}</span>
+                          <p className="font-semibold text-gray-900 text-sm">{order.customer_name}</p>
+                        </div>
                         <p className="text-xs text-gray-500 mt-0.5">{order.buyer_email} · {order.customer_phone}</p>
                       </div>
                     </div>
@@ -671,6 +705,89 @@ export default function AdminPage() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Tabla de facturas ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#4A5D23]" aria-hidden="true" />
+              <h2 className="font-black text-gray-900 text-lg">Solicitudes de factura</h2>
+              {invoices.length > 0 && (
+                <span className="text-xs bg-[#4A5D23]/10 text-[#4A5D23] font-semibold px-2 py-0.5 rounded-full">
+                  {invoices.length}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {invoicesLoading && (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 border-2 border-[#4A5D23] border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          {!invoicesLoading && invoices.length === 0 && (
+            <div className="px-6 py-12 text-center text-gray-500 text-sm">
+              No hay solicitudes de factura todavía.
+            </div>
+          )}
+
+          {!invoicesLoading && invoices.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="px-6 py-3">RFC / Razón social</th>
+                    <th className="px-6 py-3 hidden md:table-cell">Orden</th>
+                    <th className="px-6 py-3 hidden sm:table-cell">Uso CFDI</th>
+                    <th className="px-6 py-3 hidden lg:table-cell">Correo fiscal</th>
+                    <th className="px-6 py-3 hidden lg:table-cell">C.P.</th>
+                    <th className="px-6 py-3 hidden xl:table-cell">Forma de pago</th>
+                    <th className="px-6 py-3">Estado</th>
+                    <th className="px-6 py-3 hidden md:table-cell">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map(inv => (
+                    <tr key={inv.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-3">
+                        <p className="font-semibold text-gray-800 font-mono text-xs">{inv.rfc}</p>
+                        <p className="text-gray-500 text-xs mt-0.5 truncate max-w-[160px]">{inv.business_name}</p>
+                      </td>
+                      <td className="px-6 py-3 hidden md:table-cell text-gray-600">#{inv.order_id}</td>
+                      <td className="px-6 py-3 hidden sm:table-cell">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-mono">{inv.cfdi_use}</span>
+                      </td>
+                      <td className="px-6 py-3 hidden lg:table-cell text-gray-600 text-xs">{inv.fiscal_email}</td>
+                      <td className="px-6 py-3 hidden lg:table-cell text-gray-600">{inv.fiscal_zip}</td>
+                      <td className="px-6 py-3 hidden xl:table-cell">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg font-mono">{inv.payment_method ?? '—'}</span>
+                      </td>
+                      <td className="px-6 py-3">
+                        <button
+                          onClick={() => toggleInvoiceStatus(inv)}
+                          className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                            inv.status === 'issued'
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                          }`}
+                        >
+                          {inv.status === 'issued'
+                            ? <><CheckCircle className="w-3 h-3" aria-hidden="true" /> Emitida</>
+                            : <><Clock className="w-3 h-3" aria-hidden="true" /> Pendiente</>
+                          }
+                        </button>
+                      </td>
+                      <td className="px-6 py-3 hidden md:table-cell text-gray-400 text-xs">
+                        {new Date(inv.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

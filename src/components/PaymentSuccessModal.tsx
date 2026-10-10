@@ -7,6 +7,7 @@ interface InvoiceData {
   rfc: string
   businessName: string
   cfdiUse: string
+  paymentMethod: string
   fiscalZip: string
   fiscalEmail: string
 }
@@ -21,7 +22,15 @@ interface InvoiceErrors {
 const CFDI_USES = [
   { value: 'G03', label: 'Gastos en general' },
   { value: 'G01', label: 'Adquisición de mercancías' },
-  { value: 'P01', label: 'Por definir' },
+  { value: 'S01', label: 'Sin efectos fiscales' },
+]
+
+const PAYMENT_METHODS = [
+  { value: '04', label: 'Tarjeta de crédito' },
+  { value: '28', label: 'Tarjeta de débito' },
+  { value: '03', label: 'Transferencia electrónica de fondos' },
+  { value: '01', label: 'Efectivo' },
+  { value: '99', label: 'Por definir' },
 ]
 
 function validateInvoice(data: InvoiceData): InvoiceErrors {
@@ -58,7 +67,7 @@ export default function PaymentSuccessModal({ cart, total, orderId, buyerEmail, 
   const [showInvoiceForm, setShowInvoiceForm] = useState(false)
   const [invoiceRequested, setInvoiceRequested] = useState(false)
   const [invoice, setInvoice] = useState<InvoiceData>({
-    rfc: '', businessName: '', cfdiUse: 'G03', fiscalZip: '', fiscalEmail: buyerEmail ?? '',
+    rfc: '', businessName: '', cfdiUse: 'G03', paymentMethod: '04', fiscalZip: '', fiscalEmail: buyerEmail ?? '',
   })
   const [touched, setTouched] = useState<Partial<Record<keyof InvoiceData, boolean>>>({})
   const [saving, setSaving] = useState(false)
@@ -98,6 +107,7 @@ export default function PaymentSuccessModal({ cart, total, orderId, buyerEmail, 
         rfc: invoice.rfc.trim().toUpperCase(),
         business_name: invoice.businessName.trim(),
         cfdi_use: invoice.cfdiUse,
+        payment_method: invoice.paymentMethod,
         fiscal_zip: invoice.fiscalZip.trim(),
         fiscal_email: invoice.fiscalEmail.trim(),
         status: 'pending',
@@ -210,6 +220,18 @@ export default function PaymentSuccessModal({ cart, total, orderId, buyerEmail, 
                       className={inputClass()}
                     >
                       {CFDI_USES.map(u => <option key={u.value} value={u.value}>{u.value} — {u.label}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="inv-payment" className="block text-xs font-semibold text-gray-700 mb-1">Forma de pago</label>
+                    <select
+                      id="inv-payment"
+                      value={invoice.paymentMethod}
+                      onChange={e => handleField('paymentMethod', e.target.value)}
+                      className={inputClass()}
+                    >
+                      {PAYMENT_METHODS.map(p => <option key={p.value} value={p.value}>{p.value} — {p.label}</option>)}
                     </select>
                   </div>
 
