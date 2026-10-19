@@ -15,8 +15,9 @@ interface Props {
 
 export default function ProductModal({ product, cartItem, onClose, onAdd, onUpdateQuantity, onRemove }: Props) {
   const trapRef = useFocusTrap(true)
-  const images = product.image_urls?.length ? product.image_urls : [product.image_url]
-  console.log('DEBUG images:', product.image_urls, images)
+  const images = product.image_urls?.length
+    ? product.image_urls
+    : product.image_url ? [product.image_url] : []
   const [activeIdx, setActiveIdx] = useState(0)
 
   useEffect(() => { setActiveIdx(0) }, [product.id])
@@ -31,7 +32,7 @@ export default function ProductModal({ product, cartItem, onClose, onAdd, onUpda
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose, images.length])
 
-  const imgSrc = toWebP(images[activeIdx], 600)
+  const imgSrc = images.length ? toWebP(images[activeIdx], 600) : ''
 
   return (
     <div
@@ -62,15 +63,25 @@ export default function ProductModal({ product, cartItem, onClose, onAdd, onUpda
         {/* Imagen */}
         <div className="w-full md:w-1/2 shrink-0 bg-gray-50 h-56 sm:h-64 md:h-auto flex flex-col">
           <div className="relative flex-1 overflow-hidden">
-            <img
-              src={imgSrc}
-              alt={`${product.name} — foto ${activeIdx + 1} de ${images.length}`}
-              className="w-full h-full object-cover"
-              onError={e => {
-                const img = e.target as HTMLImageElement
-                if (img.src !== images[activeIdx]) img.src = images[activeIdx]
-              }}
-            />
+            {images.length ? (
+              <img
+                src={imgSrc}
+                alt={`${product.name} — foto ${activeIdx + 1} de ${images.length}`}
+                className="w-full h-full object-cover"
+                onError={e => {
+                  const img = e.target as HTMLImageElement
+                  if (img.src !== images[activeIdx]) img.src = images[activeIdx]
+                }}
+              />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center text-sm text-gray-400"
+                role="img"
+                aria-label={`${product.name} — sin imagen`}
+              >
+                Sin imagen
+              </div>
+            )}
             {images.length > 1 && (
               <>
                 <button
@@ -105,7 +116,16 @@ export default function ProductModal({ product, cartItem, onClose, onAdd, onUpda
                     i === activeIdx ? 'border-[#4A5D23]' : 'border-transparent hover:border-gray-300'
                   }`}
                 >
-                  <img src={toWebP(url, 96)} alt="" className="w-full h-full object-cover" aria-hidden="true" />
+                  <img
+                    src={toWebP(url, 96)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    aria-hidden="true"
+                    onError={e => {
+                      const img = e.target as HTMLImageElement
+                      if (img.src !== url) img.src = url
+                    }}
+                  />
                 </button>
               ))}
             </div>
